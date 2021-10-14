@@ -24,6 +24,7 @@ void enableRawMode() {
 
 	struct termios raw = orig_termios;
 	raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+	raw.c_oflag &= ~(OPOST);
 	raw.c_iflag &= ~(IXON | ICRNL); //IXON:  Disable ctrl-S and ctrl-Q	
 	tcsetattr(STDIN_FILENO, TCSAFLUSH,&raw); 
 }
