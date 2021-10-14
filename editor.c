@@ -5,12 +5,40 @@
 #include <ctype.h>
 #include <errno.h>
 
+
+#define CTRL_KEY(k) ((k) & 0x1f)
+
 struct termios orig_termios;
 
 void die(const char *s) {
 	perror(s);
 	exit(1);
 }
+
+
+char editorReadKey() {
+	int nread;
+	char c;
+	while((nread = read(STDIN_FILENO, &c, 1) != 1)) {
+		if (nread == -1 && errno != EAGAIN) die("read");	
+	}
+	return c;
+}
+
+void editorProcessKeypress() {
+	char c = editorReadKey();
+	
+	switch(c) {
+		case CTRL_KEY('q'):
+			exit(0);
+			break;
+	}
+}
+
+void editorRefreshScreen() {
+	write(STDIN_FILENO, "\x1b[2J", 4);
+}
+
 
 void disableRawMode() {
 	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios) == -1) die("tcsetattr");
@@ -20,7 +48,7 @@ void disableRawMode() {
 void enableRawMode() {
 	/*
 	Enables raw mode:
-		 pass in the original value of struct at the beginning and 		    in other to reset the terminal prperly at exit
+		 pass in the original value of struct at the beginning and in other to reset the terminal prperly at exit
 	*/
 
 	if (tcgetattr(STDIN_FILENO, &orig_termios) == -1) die("tcgetattr");
@@ -40,16 +68,9 @@ void enableRawMode() {
 
 int main() {
 	enableRawMode();
-	char c = '\0';	
-	if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) die("read");
-	/*Reads the character in c, but exits as soon as it reads 'q'*/
-	while(1) {
-		if (iscntrl(c)) {
-			printf("%d\r\n", c);
-		} else {	
-			printf("%d ('%c')\r\n", c, c);
-		}
-		if (c = 'q') break;
-	}
-	return 0;
+	
+	while (1) {
+		editorRefreshScreen();	
+		editorProcessKeypress();
+	}	
 }
