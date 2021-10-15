@@ -17,8 +17,8 @@ struct editorConfig {
 struct editorConfig E;
 
 void die(const char *s) {
-	write(STDIN_FILENO, "\x1b[2J", 4);
-	write(STDIN_FILENO, "\x1b[H", 3);
+	write(STDOUT_FILENO, "\x1b[2J", 4);
+	write(STDOUT_FILENO, "\x1b[H", 3);
 	perror(s);
 	exit(1);
 }
@@ -38,7 +38,7 @@ int getCursorPosition(int *rows, int *cols) {
 	char buf[32];
 	unsigned int i = 0;
 
-	if (write(STDIN_FILENO, "\x1b[6n", 4) != 4) return -1;
+	if (write(STDOUT_FILENO, "\x1b[6n", 4) != 4) return -1;
 	
 
 	while (i < sizeof(buf)-1) {
@@ -57,8 +57,8 @@ int getCursorPosition(int *rows, int *cols) {
 int getWindowsSize(int *rows, int *cols) {
 	struct winsize ws;
 	
-	if (1 || ioctl(STDIN_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
-		if (write(STDIN_FILENO, "\x1b[999C\x1b[999B", 12) != 12) {
+	if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
+		if (write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12) {
 			return -1;	
 		}
 		
@@ -73,7 +73,7 @@ int getWindowsSize(int *rows, int *cols) {
 int getWindowSize(int *rows, int *cols) {
 	struct winsize ws;
 	
-	if (ioctl(STDIN_FILENO, TIOCGWINSZ, &ws)== -1 || ws.ws_col == 0) {
+	if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)== -1 || ws.ws_col == 0) {
 		return -1;
 	} else {
 		*cols = ws.ws_col;
@@ -91,10 +91,10 @@ void initEditor() {
 void editorDrawsRows() {
 	int y;
 	for (y =0; y < E.screenrows; y++) {
-		write(STDIN_FILENO, "~", 1);
+		write(STDOUT_FILENO, "~", 1);
 		
 		if (y < E.screenrows -1) {
-			write(STDIN_FILENO, "\r\n", 2);
+			write(STDOUT_FILENO, "\r\n", 2);
 		}	
 	}
 
