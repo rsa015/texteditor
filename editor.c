@@ -4,13 +4,21 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <errno.h>
-
+#include <sys/ioctl.h>
 
 #define CTRL_KEY(k) ((k) & 0x1f)
 
-struct termios orig_termios;
+struct editorConfig {
+	int screenrows;	
+	int screencols;	
+	struct termios orig_termios;
+};
+
+struct editorConfig E;
 
 void die(const char *s) {
+	write(STDIN_FILENO, "\x1b[2J", 4);
+	write(STDIN_FILENO, "\x1b[H", 3);
 	perror(s);
 	exit(1);
 }
@@ -25,23 +33,96 @@ char editorReadKey() {
 	return c;
 }
 
+
+int getCursorPosition(int *rows, int *cols) {
+	char buf[32];
+	unsigned int i = 0;
+
+	if (write(STDIN_FILENO, "\x1b[6n", 4) != 4) return -1;
+	
+
+	while (i < sizeof(buf)-1) {
+		if (read(STDIN_FILENO, &buf[i], 1) != 1) break;
+		if (buf[i] == 'R') break;
+		i++;
+	}
+	
+	buf[i] = '\0';
+	
+	if (buf[0] != '\x1b' || buf[1] != '[') return -1;
+	if (sscanf(&buf[2], "%d;%d", rows, cols) != 2) return -1;
+	
+	return 0;
+}
+int getWindowsSize(int *rows, int *cols) {
+	struct winsize ws;
+	
+	if (1 || ioctl(STDIN_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
+		if (write(STDIN_FILENO, "\x1b[999C\x1b[999B", 12) != 12) {
+			return -1;	
+		}
+		
+		return getCursorPosition(rows, cols);	
+	} else {
+		*cols = ws.ws_col;
+		*rows = ws.ws_row;
+		return 0;	
+	}
+
+}
+int getWindowSize(int *rows, int *cols) {
+	struct winsize ws;
+	
+	if (ioctl(STDIN_FILENO, TIOCGWINSZ, &ws)== -1 || ws.ws_col == 0) {
+		return -1;
+	} else {
+		*cols = ws.ws_col;
+		*rows = ws.ws_row;
+		return 0;
+	}
+	
+}
+
+void initEditor() {
+	if (getWindowsSize(&E.screenrows, &E.screencols) == -1) die("getWindowSize");
+}
+
+
+void editorDrawsRows() {
+	int y;
+	for (y =0; y < E.screenrows; y++) {
+		write(STDIN_FILENO, "~", 1);
+		
+		if (y < E.screenrows -1) {
+			write(STDIN_FILENO, "\r\n", 2);
+		}	
+	}
+
+}
 void editorProcessKeypress() {
 	char c = editorReadKey();
 	
 	switch(c) {
 		case CTRL_KEY('q'):
+			write(STDIN_FILENO, "\x1b[2J", 4);
+			write(STDIN_FILENO, "\x1b[H", 3);
 			exit(0);
 			break;
 	}
 }
 
 void editorRefreshScreen() {
+	write(STDIN_FILENO, "\x1b[H", 3);
 	write(STDIN_FILENO, "\x1b[2J", 4);
+
+	editorDrawsRows();
+
+	write(STDIN_FILENO, "\x1b[H", 3);
 }
 
 
 void disableRawMode() {
-	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios) == -1) die("tcsetattr");
+	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios) == -1) die("tcsetattr");
 }
 
 
@@ -51,11 +132,11 @@ void enableRawMode() {
 		 pass in the original value of struct at the beginning and in other to reset the terminal prperly at exit
 	*/
 
-	if (tcgetattr(STDIN_FILENO, &orig_termios) == -1) die("tcgetattr");
+	if (tcgetattr(STDIN_FILENO, &E.orig_termios) == -1) die("tcgetattr");
 	
 	atexit(disableRawMode);
 
-	struct termios raw = orig_termios;
+	struct termios raw = E.orig_termios;
 	raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
 	raw.c_oflag &= ~(OPOST);
 	raw.c_iflag &= ~(IXON | ICRNL | BRKINT | ISTRIP | INPCK); //IXON:  Disable ctrl-S and ctrl-Q
@@ -68,7 +149,7 @@ void enableRawMode() {
 
 int main() {
 	enableRawMode();
-	
+	initEditor();	
 	while (1) {
 		editorRefreshScreen();	
 		editorProcessKeypress();
