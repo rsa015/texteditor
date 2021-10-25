@@ -13,6 +13,7 @@
 #define CTRL_KEY(k) ((k) & 0x1f)
 
 struct editorConfig {
+	int cx, cy;
 	int screenrows;	
 	int screencols;	
 	struct termios orig_termios;
@@ -108,6 +109,9 @@ int getWindowSize(int *rows, int *cols) {
 }
 
 void initEditor() {
+	E.cx = 0;
+	E.cy = 0;
+
 	if (getWindowsSize(&E.screenrows, &E.screencols) == -1) die("getWindowSize");
 }
 
@@ -157,6 +161,10 @@ void editorRefreshScreen() {
 	abAppend(&ab, "\x1b[H", 3);
 
 	editorDrawsRows(&ab);
+
+	char buf[32];
+	snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.cx + 1, E.cy + 1);
+	abAppend(&ab, buf, strlen(buf));
 
 	abAppend(&ab, "\x1b[H", 3);
 	abAppend(&ab, "\x1b[?25h", 6);
